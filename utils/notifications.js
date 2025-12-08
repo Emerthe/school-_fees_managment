@@ -2,6 +2,7 @@
  * Notification utility for CI/CD feedback (email and Slack)
  */
 
+
 const nodemailer = require('nodemailer');
 
 /**
