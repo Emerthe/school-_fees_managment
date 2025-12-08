@@ -1,12 +1,17 @@
 {
   "name": "school-fees-manager",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "School Fees Manager - Node/Express app with MySQL (Sequelize)",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "jest --runInBand"
+  "test": "jest --runInBand",
+  "release:patch": "node scripts/release.js patch",
+  "release:minor": "node scripts/release.js minor",
+  "release:major": "node scripts/release.js major",
+  "release": "node scripts/release.js patch docker.io/emerthe",
+  "docker:release": "node scripts/docker-release.js docker.io/emerthe 1.0.0"
   },
   "engines": {
     "node": ">=18"

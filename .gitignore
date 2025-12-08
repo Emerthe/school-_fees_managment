@@ -1,6 +1,49 @@
+# Dependencies
 node_modules/
+package-lock.json
+
+# Environment
 .env
-.DS_Store
-coverage/
+.env.local
+.env.*.local
+
+# Build outputs
 dist/
+build/
+out/
+
+# Docker
+docker-buildx-cache/
+release/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Logs
 npm-debug.log
+npm-error.log
+logs/
+*.log
+
+# Database (development)
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+tmp/
+temp/
+*.tgz
+*.tar.gz
