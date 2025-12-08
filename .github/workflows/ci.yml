@@ -30,7 +30,7 @@ jobs:
       - name: Notify Slack (if configured)
         if: always()
         env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_SECRET }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.ref }}
           GITHUB_SHA: ${{ github.sha }}
@@ -47,31 +47,4 @@ jobs:
             "
           else
             echo "No Slack webhook configured; skipping notification"
-          fi
-      - name: Send email notification (if configured)
-        if: always()
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
-          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          if [ -n "$EMAIL_USER" ] && [ -n "$EMAIL_PASS" ] && [ -n "$EMAIL_RECIPIENT" ]; then
-            node -e "
-            const { sendEmailNotification } = require('./utils/notifications');
-            sendEmailNotification('$EMAIL_RECIPIENT', {
-              emailUser: '$EMAIL_USER',
-              emailPass: '$EMAIL_PASS',
-              emailHost: '$EMAIL_HOST' || 'smtp.gmail.com',
-              status: '${{ job.status }}',
-              repo: '$GITHUB_REPOSITORY',
-              ref: '$GITHUB_REF',
-              sha: '$GITHUB_SHA'
-            });
-            "
-          else
-            echo "No email credentials configured; skipping email notification"
           fi
