@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: sf_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: school_fees_db
+      MYSQL_USER: sf_user
+      MYSQL_PASSWORD: sf_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: sf_app
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DB_DIALECT: mysql
+      DB_HOST: db
+      DB_USER: sf_user
+      DB_PASS: sf_pass
+      DB_NAME: school_fees_db
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app:delegated
+      - /app/node_modules
+    # Use the production start command inside the image (nodemon is a devDependency
+    # and isn't installed in the runtime image). For local dev with live reload,
+    # run `npm install` locally and use `npm run dev` outside the container.
+    command: npm start
+
+volumes:
+  db_data:
