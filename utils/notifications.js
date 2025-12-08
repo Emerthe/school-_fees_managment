@@ -3,7 +3,8 @@
  */
 
 
-const nodemailer = require('nodemailer');
+// Email sending is opt-in. Set ENABLE_EMAIL_NOTIFS=true in the environment
+// and configure EMAIL_USER/EMAIL_PASS to enable email notifications.
 
 /**
  * Send email notification for CI build result
@@ -21,12 +22,19 @@ async function sendEmailNotification(recipientEmail, config) {
     sha = 'unknown',
   } = config;
 
+  if (process.env.ENABLE_EMAIL_NOTIFS !== 'true') {
+    console.log('Email notification skipped: ENABLE_EMAIL_NOTIFS is not true');
+    return;
+  }
+
   if (!emailUser || !emailPass || !recipientEmail) {
     console.log('Email notification skipped: missing credentials or recipient');
     return;
   }
 
   try {
+    // Lazy-require nodemailer only when sending is enabled
+    const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
       host: emailHost,
       port: 587,
