@@ -49,7 +49,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image (Docker Hub)
-        if: secrets.DOCKER_USERNAME != ''
+        if: ${{ secrets.DOCKER_USERNAME != '' }}
         uses: docker/build-push-action@v5
         with:
           context: .
