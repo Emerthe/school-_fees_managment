@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,18 +47,18 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image (Docker Hub)
-        if: ${{ secrets.DOCKER_USERNAME != '' }}
+        if: ${{ env.DOCKER_USERNAME != '' }}
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/school-fees-manager:${{ steps.version.outputs.version }}
-            ${{ secrets.DOCKER_USERNAME }}/school-fees-manager:latest
+            ${{ env.DOCKER_USERNAME }}/school-fees-manager:${{ steps.version.outputs.version }}
+            ${{ env.DOCKER_USERNAME }}/school-fees-manager:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -89,7 +91,7 @@ jobs:
             ## Release v${{ steps.version.outputs.version }}
 
             ### Docker Images
-            - Docker Hub: `${{ secrets.DOCKER_USERNAME }}/school-fees-manager:${{ steps.version.outputs.version }}`
+            - Docker Hub: `${{ env.DOCKER_USERNAME }}/school-fees-manager:${{ steps.version.outputs.version }}`
             - GitHub Container Registry: `ghcr.io/${{ github.repository_owner }}/school-fees-manager:${{ steps.version.outputs.version }}`
 
             ### What's included
