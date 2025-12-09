@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -27,6 +29,24 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t school-fees-manager:ci .
+      - name: Log in to Docker Hub
+        if: ${{ env.DOCKER_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image to Docker Hub
+        if: ${{ env.DOCKER_USERNAME != '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/school-fees-manager:ci
+            ${{ env.DOCKER_USERNAME }}/school-fees-manager:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Notify Slack (if configured)
         if: always()
         env:
