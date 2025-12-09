@@ -45,8 +45,6 @@ jobs:
           tags: |
             ${{ env.DOCKER_USERNAME }}/school-fees-manager:ci
             ${{ env.DOCKER_USERNAME }}/school-fees-manager:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
       - name: Notify Slack (if configured)
         if: always()
         env:
