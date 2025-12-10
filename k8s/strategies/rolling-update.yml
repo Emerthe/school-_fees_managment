@@ -1,0 +1,160 @@
+# Rolling Update Deployment Strategy
+# Gradually replaces old pods with new ones to maintain availability
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: school-fees-manager-rolling
+  namespace: school-fees-manager
+  labels:
+    app: school-fees-manager
+    strategy: rolling-update
+  annotations:
+    description: "Rolling update deployment - gradually replaces pods (0 downtime)"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Allow 1 extra pod during update (4 pods max)
+      maxUnavailable: 0  # Keep all pods available (zero downtime)
+  selector:
+    matchLabels:
+      app: school-fees-manager
+      strategy: rolling-update
+  minReadySeconds: 10    # Wait 10s after pod starts before considering it ready
+  progressDeadlineSeconds: 600  # 10 minutes to complete update
+
+  template:
+    metadata:
+      labels:
+        app: school-fees-manager
+        strategy: rolling-update
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: school-fees-manager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: school-fees-manager
+          image: emerthe/school-fees-manager:latest  # Use specific version in prod
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: sfm-config
+                  key: NODE_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: sfm-config
+                  key: LOG_LEVEL
+            - name: DB_HOST
+              value: "mysql.school-fees-manager.svc.cluster.local"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sfm-secrets
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: sfm-secrets
+                  key: DB_PASS
+            - name: DB_NAME
+              value: "school_fees_db"
+            - name: DB_POOL_MIN
+              valueFrom:
+                configMapKeyRef:
+                  name: sfm-config
+                  key: DB_POOL_MIN
+            - name: DB_POOL_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: sfm-config
+                  key: DB_POOL_MAX
+            - name: SLACK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: sfm-secrets
+                  key: SLACK_SECRET
+
+          # Resource requests and limits
+          resources:
+            requests:
+              cpu: 100m           # Minimum 0.1 CPU cores
+              memory: 256Mi       # Minimum 256 MB RAM
+            limits:
+              cpu: 500m           # Maximum 0.5 CPU cores
+              memory: 512Mi       # Maximum 512 MB RAM
+
+          # Liveness probe (restart if unhealthy)
+          livenessProbe:
+            httpGet:
+              path: /students     # Health check endpoint
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe (remove from service if not ready)
+          readinessProbe:
+            httpGet:
+              path: /students
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          # Graceful shutdown (max 30s to drain connections)
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      # Pod disruption budget (maintain minimum replicas during rolling update)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - school-fees-manager
+                topologyKey: kubernetes.io/hostname
+
+---
+# PodDisruptionBudget: Ensure minimum availability during rolling updates
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sfm-pdb
+  namespace: school-fees-manager
+spec:
+  minAvailable: 2  # Keep at least 2 pods available at all times
+  selector:
+    matchLabels:
+      app: school-fees-manager

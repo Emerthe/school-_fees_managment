@@ -1,0 +1,99 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    tags:
+      - 'v*'  # Deploy on version tags
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image_tag=emerthe/school-fees-manager:${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl context
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          kubectl config use-context production
+
+      - name: Deploy to Kubernetes (Rolling Update)
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          # Update image in rolling update deployment
+          kubectl set image deployment/school-fees-manager-rolling \
+            school-fees-manager=${{ env.IMAGE_TAG }} \
+            -n school-fees-manager
+
+          # Wait for rollout to complete (max 5 minutes)
+          kubectl rollout status deployment/school-fees-manager-rolling \
+            -n school-fees-manager --timeout=5m
+
+      - name: Verify deployment health
+        run: |
+          # Check pod status
+          kubectl get pods -n school-fees-manager
+          
+          # Check service endpoints
+          kubectl get endpoints school-fees-manager -n school-fees-manager
+          
+          # Run smoke test against service
+          kubectl run smoke-test \
+            --image=curlimages/curl \
+            --rm -i --restart=Never \
+            -n school-fees-manager \
+            -- curl -f http://school-fees-manager:3000/students || exit 1
+
+      - name: Blue-Green Switch (if needed)
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
+        run: |
+          # Update green deployment
+          kubectl set image deployment/school-fees-manager-green \
+            school-fees-manager=${{ steps.version.outputs.image_tag }} \
+            -n school-fees-manager
+          
+          # Wait for green to be ready
+          kubectl rollout status deployment/school-fees-manager-green \
+            -n school-fees-manager --timeout=5m
+
+          # Switch service to green
+          kubectl patch svc school-fees-manager-blue-green \
+            -p '{"spec":{"selector":{"slot":"green"}}}' \
+            -n school-fees-manager
+
+          echo "Switched to green deployment for version ${{ steps.version.outputs.version }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed. Rolling back..."
+          kubectl rollout undo deployment/school-fees-manager-rolling \
+            -n school-fees-manager
+          kubectl rollout status deployment/school-fees-manager-rolling \
+            -n school-fees-manager
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_SECRET }}
+        run: |
+          STATUS="${{ job.status }}"
+          MESSAGE="Kubernetes deployment $STATUS for version ${{ steps.version.outputs.version }}"
+          curl -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\"$MESSAGE\"}"
