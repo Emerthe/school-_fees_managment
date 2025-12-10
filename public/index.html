@@ -537,6 +537,10 @@
           students.forEach(student => {
             options += `<option value="${student.id}">${student.name} (Pending: KES ${Math.max(0, student.fees - student.feePaid).toLocaleString()})</option>`;
           });
+
+          
+
+
         }
         
         select.innerHTML = options;
