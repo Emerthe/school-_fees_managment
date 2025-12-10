@@ -1,0 +1,77 @@
+# Prometheus alerting rules for School Fees Manager
+# Based on error budget: 99.9% availability (43.2 minutes downtime per month)
+groups:
+  - name: school-fees-manager-alerts
+    interval: 30s
+    rules:
+      # High HTTP error rate (>5% errors for 5 minutes)
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m])) by (job)
+          /
+          sum(rate(http_requests_total[5m])) by (job) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          error_budget_impact: high
+        annotations:
+          summary: "High HTTP error rate detected on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # Service down (no metrics received)
+      - alert: ServiceDown
+        expr: up{job="school-fees-manager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          error_budget_impact: critical
+        annotations:
+          summary: "School Fees Manager service is down"
+          description: "No metrics received from {{ $labels.instance }} for 2 minutes"
+
+      # High database query latency (p99 > 1s)
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.99, rate(database_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency detected"
+          description: "P99 query latency is {{ $value | humanizeDuration }}"
+
+      # Database connection pool exhausted (>80% utilization)
+      - alert: DatabaseConnectionPoolAlmostFull
+        expr: |
+          active_database_connections / 100 > 0.8
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool utilization is high"
+          description: "{{ $value | humanizePercentage }} of max connections in use"
+
+      # Request duration spike (p95 > 500ms for more than 10 minutes)
+      - alert: RequestDurationSpike
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[10m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request duration spike detected"
+          description: "P95 request latency is {{ $value | humanizeDuration }}"
+
+      # Error budget exhaustion (SLO violation)
+      - alert: ErrorBudgetExhausted
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[30m])) by (job)
+          /
+          sum(rate(http_requests_total[30m])) by (job) > 0.001
+        for: 30m
+        labels:
+          severity: critical
+          error_budget_impact: critical
+        annotations:
+          summary: "Error budget exhausted (SLO: 99.9% availability)"
+          description: "Actual availability is {{ $value | humanizePercentage }} (SLO: 99.9%)"
